@@ -136,20 +136,43 @@ int _tmain(int argc, TCHAR *argv[])
 		GetModuleFileName(NULL, bufFile, MAX_PATH);
 		TCHAR *p = _tcsrchr(bufFile, '//');
 		*p = 0x00;
-		
+
 		_tcscat_s(bufFile, argv[1]);
 		pSource = new Bitmap(bufFile);
 	}
+
+	UINT nSrcWidth = pSource->GetWidth();
+	UINT nSrcHeight = pSource->GetHeight();
+	UINT nNewWidth = nSrcWidth;
+	UINT nNewHeight = nSrcHeight;
+	UINT nNewLeft = 0;
+	UINT nNewTop = 0;
+
+	double dRate = 200.0 / 120.0;
+	if (double(nSrcWidth) / double(nSrcHeight) > dRate)
+	{
+		nNewWidth = nSrcHeight * dRate;
+		nNewLeft = (nSrcWidth - nNewWidth) / 2;
+	}
+	else
+	{
+		nNewHeight = nSrcWidth / dRate;
+		nNewTop = (nSrcHeight - nNewHeight) / 2;
+	}
+	Bitmap * pStreched = new Bitmap(nNewWidth, nNewHeight, PixelFormat32bppARGB);
+	Graphics * g1 = Graphics::FromImage(pStreched);
+	g1->SetInterpolationMode(InterpolationModeHighQualityBicubic);
+	g1->DrawImage(pSource, 0, 0, nNewLeft, nNewTop, nSrcWidth, nSrcHeight, UnitPixel);
 	
 	Bitmap * pDest = new Bitmap(256, 128, PixelFormat32bppARGB);
 	Graphics * g = Graphics::FromImage(pDest);
 	Color cl;
 	cl.SetFromCOLORREF(0);
 	SolidBrush * b = new SolidBrush(cl);
-
+	
 	g->FillRectangle(b, Rect(0, 0, 256, 128));
 	g->SetInterpolationMode(InterpolationModeHighQualityBicubic);
-	g->DrawImage(pSource, 0, 0, 200, 120);
+	g->DrawImage(pStreched, 0, 0, 200, 120);
 
 	//BYTE * pBImgData = ConvertFromBitmapARGB(pDest);
 	BYTE * pBImgData = ConvertFromBitmapARGB(pDest);
@@ -169,14 +192,32 @@ int _tmain(int argc, TCHAR *argv[])
 			break;
 		}
 	}
+	if (PathFileExists(szDestFile))
+	{
+		DeleteFile(szDestFile);
+	}
 	HANDLE hFile = CreateFile(szDestFile, FILE_ALL_ACCESS, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	DWORD dwWritten;
-	WriteFile(hFile, bimgHeader, 0x20, &dwWritten, NULL);
-	WriteFile(hFile, pBImgData, 256 * 128 * 2, &dwWritten, NULL);
-	CloseHandle(hFile);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		DWORD dwErr = GetLastError();
+		TCHAR buf[255];
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwErr, 0, buf, 255, NULL);
+		_tprintf_s(buf);
+	}
+	else
+	{
+		DWORD dwWritten;
+		WriteFile(hFile, bimgHeader, 0x20, &dwWritten, NULL);
+		WriteFile(hFile, pBImgData, 256 * 128 * 2, &dwWritten, NULL);
+		FlushFileBuffers(hFile);
+		CloseHandle(hFile);
+	}
+
 	delete[] pBImgData;
 	
+	delete g1;
 	delete g;
+	delete pStreched;
 	delete pSource;
 	delete pDest;
 
