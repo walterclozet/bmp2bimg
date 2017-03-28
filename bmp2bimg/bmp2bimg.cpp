@@ -1,10 +1,10 @@
 // bmp2bimg.cpp : 定义控制台应用程序的入口点。
 //
 
-#include "stdafx.h"
 #include "windows.h"
 #include <gdiplus.h>
 #include <shlwapi.h>
+#include <tchar.h>
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "gdiplus.lib")
 using namespace Gdiplus;
