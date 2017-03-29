@@ -119,69 +119,19 @@ BYTE * ConvertFromBitmapARGB(Bitmap * pDest)
 }
 
 
-int _tmain(int argc, TCHAR *argv[])
+BOOL WriteBimgFile(BYTE * pBImgData, TCHAR * file)
 {
-	GdiplusStartupInput gdiplusStartupInput;
-	ULONG_PTR gdiplusToken;
-	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-
-	Bitmap * pSource = NULL;
-	if (PathFileExists(argv[1]))
+	if (pBImgData == NULL)
 	{
-		pSource = new Bitmap(argv[1]);
+		SetLastError(ERROR_INVALID_PARAMETER);
+		return FALSE;
 	}
-	else
-	{
-		TCHAR bufFile[MAX_PATH];
-		GetModuleFileName(NULL, bufFile, MAX_PATH);
-		TCHAR *p = _tcsrchr(bufFile, '//');
-		*p = 0x00;
-
-		_tcscat_s(bufFile, argv[1]);
-		pSource = new Bitmap(bufFile);
-	}
-
-	UINT nSrcWidth = pSource->GetWidth();
-	UINT nSrcHeight = pSource->GetHeight();
-	UINT nNewWidth = nSrcWidth;
-	UINT nNewHeight = nSrcHeight;
-	UINT nNewLeft = 0;
-	UINT nNewTop = 0;
-
-	double dRate = 200.0 / 120.0;
-	if (double(nSrcWidth) / double(nSrcHeight) > dRate)
-	{
-		nNewWidth = nSrcHeight * dRate;
-		nNewLeft = (nSrcWidth - nNewWidth) / 2;
-	}
-	else
-	{
-		nNewHeight = nSrcWidth / dRate;
-		nNewTop = (nSrcHeight - nNewHeight) / 2;
-	}
-	Bitmap * pStreched = new Bitmap(nNewWidth, nNewHeight, PixelFormat32bppARGB);
-	Graphics * g1 = Graphics::FromImage(pStreched);
-	g1->SetInterpolationMode(InterpolationModeHighQualityBicubic);
-	g1->DrawImage(pSource, 0, 0, nNewLeft, nNewTop, nSrcWidth, nSrcHeight, UnitPixel);
-	
-	Bitmap * pDest = new Bitmap(256, 128, PixelFormat32bppARGB);
-	Graphics * g = Graphics::FromImage(pDest);
-	Color cl;
-	cl.SetFromCOLORREF(0);
-	SolidBrush * b = new SolidBrush(cl);
-	
-	g->FillRectangle(b, Rect(0, 0, 256, 128));
-	g->SetInterpolationMode(InterpolationModeHighQualityBicubic);
-	g->DrawImage(pStreched, 0, 0, 200, 120);
-
-	//BYTE * pBImgData = ConvertFromBitmapARGB(pDest);
-	BYTE * pBImgData = ConvertFromBitmapARGB(pDest);
 
 	BYTE bimgHeader[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
-						  0x00, 0x01, 0x80, 0x00, 0x01, 0x02, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0xe0, 0x2e, 0x06, 0x51 };
+		0x00, 0x01, 0x80, 0x00, 0x01, 0x02, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0xe0, 0x2e, 0x06, 0x51 };
 
 	TCHAR szDestFile[MAX_PATH];
-	_tcscpy_s(szDestFile, argv[1]);
+	_tcscpy_s(szDestFile, file);
 	size_t i = _tcslen(szDestFile);
 	for (; i >= 0; --i)
 	{
@@ -199,10 +149,7 @@ int _tmain(int argc, TCHAR *argv[])
 	HANDLE hFile = CreateFile(szDestFile, FILE_ALL_ACCESS, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		DWORD dwErr = GetLastError();
-		TCHAR buf[255];
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwErr, 0, buf, 255, NULL);
-		_tprintf_s(buf);
+		return FALSE;
 	}
 	else
 	{
@@ -214,12 +161,99 @@ int _tmain(int argc, TCHAR *argv[])
 	}
 
 	delete[] pBImgData;
-	
+
+	return TRUE;
+}
+
+BYTE * GetRawBImgDataFromFile(TCHAR * file)
+{
+	Bitmap * pSource = NULL;
+	if (PathFileExists(file))
+	{
+		pSource = new Bitmap(file);
+	}
+	else
+	{
+		TCHAR bufFile[MAX_PATH];
+		GetModuleFileName(NULL, bufFile, MAX_PATH);
+		TCHAR *p = _tcsrchr(bufFile, '\\');
+		*p = 0x00;
+
+		_tcscat_s(bufFile, file);
+		if (PathFileExists(bufFile))
+		{
+			pSource = new Bitmap(bufFile);
+		}
+	}
+
+	if (pSource == NULL)
+	{
+		return NULL;
+	}
+
+	UINT nSrcWidth = pSource->GetWidth();
+	UINT nSrcHeight = pSource->GetHeight();
+	UINT nNewWidth = nSrcWidth;
+	UINT nNewHeight = nSrcHeight;
+	UINT nNewLeft = 0;
+	UINT nNewTop = 0;
+
+	double dRate = 200.0 / 120.0;
+	if (double(nSrcWidth) / double(nSrcHeight) > dRate)
+	{
+		nNewWidth = static_cast<UINT>(nSrcHeight * dRate);
+		nNewLeft = (nSrcWidth - nNewWidth) / 2;
+	}
+	else
+	{
+		nNewHeight = static_cast<UINT>(nSrcWidth / dRate);
+		nNewTop = (nSrcHeight - nNewHeight) / 2;
+	}
+	Bitmap * pStreched = new Bitmap(nNewWidth, nNewHeight, PixelFormat32bppARGB);
+	Graphics * g1 = Graphics::FromImage(pStreched);
+	g1->SetInterpolationMode(InterpolationModeHighQualityBicubic);
+	g1->DrawImage(pSource, 0, 0, nNewLeft, nNewTop, nSrcWidth, nSrcHeight, UnitPixel);
+
+	Bitmap * pDest = new Bitmap(256, 128, PixelFormat32bppARGB);
+	Graphics * g = Graphics::FromImage(pDest);
+	Color cl;
+	cl.SetFromCOLORREF(0);
+	SolidBrush * b = new SolidBrush(cl);
+
+	g->FillRectangle(b, Rect(0, 0, 256, 128));
+	g->SetInterpolationMode(InterpolationModeHighQualityBicubic);
+	g->DrawImage(pStreched, 0, 0, 200, 120);
+
+	//BYTE * pBImgData = ConvertFromBitmapARGB(pDest);
+	BYTE * pBImgData = ConvertFromBitmapARGB(pDest);
+
 	delete g1;
 	delete g;
 	delete pStreched;
 	delete pSource;
 	delete pDest;
+
+	return pBImgData;
+}
+
+
+int _tmain(int argc, TCHAR *argv[])
+{
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR gdiplusToken;
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+	BYTE * pBImgData = GetRawBImgDataFromFile(argv[1]);
+
+	BOOL bRes = WriteBimgFile(pBImgData, argv[1]);
+
+	if (bRes == FALSE)
+	{
+		DWORD dwErr = GetLastError();
+		TCHAR buf[255];
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwErr, 0, buf, 255, NULL);
+		_tprintf_s(buf);
+	}
 
 	GdiplusShutdown(gdiplusToken);
 
